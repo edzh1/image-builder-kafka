@@ -1,0 +1,136 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    env_file:
+      - app/.env
+    restart: unless-stopped
+    volumes:
+      - ./app:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.4
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.4
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "9999:9999"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL_SAME_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      CONNECT_CONFLUENT_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: nc -z localhost 9092 || exit -1
+      start_period: 15s
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  kafka_ui:
+    image: provectuslabs/kafka-ui
+    ports:
+      - 8081:8080
+    environment:
+      - DYNAMIC_CONFIG_ENABLED=true
+
+  init-kafka:
+    image: confluentinc/cp-kafka:7.4.4
+    depends_on:
+      - kafka
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka:9092 --list
+
+      echo -e 'Creating kafka topics'
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic compress --replication-factor 1 --partitions 2
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic edit --replication-factor 1 --partitions 2
+
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka:9092 --list
+      "
+
+  consumer:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./consumer:/app/consumer
+      - ./app/uploads:/app/uploads
+
+  consumer2:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./consumer:/app/consumer
+      - ./app/uploads:/app/uploads
+
+  consumer3:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./consumer:/app/consumer
+      - ./app/uploads:/app/uploads
+
+  consumer4:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./consumer:/app/consumer
+      - ./app/uploads:/app/uploads
+
+#  db:
+#    container_name: slicense-db
+#    image: registry-dev.samoletgroup.ru/docker/postgres:15.1
+#    env_file:
+#      - app/.env
+#      - app/.env.local
+#    restart: unless-stopped
+#    ports:
+#      - "5432:5432"
+#    volumes:
+#      - db:/var/lib/postgresql/data:rw
+
+
+
+
+#volumes:
+#  files: {}
